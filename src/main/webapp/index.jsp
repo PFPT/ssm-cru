@@ -35,8 +35,7 @@
                     <div class="form-group">
                         <label class="col-sm-2 control-label">empName</label>
                         <div class="col-sm-10">
-                            <input type="text" name="empName" class="form-control" id="empName_update_input" placeholder="empName">
-                            <span class="help-block"></span>
+                            <p class="form-control-static" id="empName_update_static"></p>
                         </div>
                     </div>
                     <div class="form-group">
@@ -170,7 +169,7 @@
     </div>
 </div>
 <script type="text/javascript">
-    var totalRecord;//用来记录总记录条数，把这个大于真是页码数的数据传入to_page方法可以得到最后一页数据，方便新增记录后跳转到最后一页查看
+    var totalRecord,currentPage;//用来记录总记录条数，把这个大于真是页码数的数据传入to_page方法可以得到最后一页数据，方便新增记录后跳转到最后一页查看
     //1、页面加载完成以后，直接去发送ajax请求，要到分页数据
     $(function () {
         to_page(1)
@@ -207,9 +206,11 @@
                 <span class="glyphicon glyphicon-pencil" aria-hidden="true"></span>
             编辑
             </button>*/
-            var editBtn = $("<button></button>").addClass("btn btn-info btn-sm")
+            var editBtn = $("<button></button>").addClass("btn btn-info btn-sm edit_btn")
                 .append($("<span></span>").addClass("glyphicon glyphicon-pencil")).append("编辑");
-            var delBtn = $("<button></button>").addClass("btn btn-warning btn-sm")
+            //为编辑按钮添加一个自定义的属性，来表示当前员工id
+            editBtn.attr("edit-id",item.empId);
+            var delBtn = $("<button></button>").addClass("btn btn-warning btn-sm delete_btn")
                 .append($("<span></span>").addClass("glyphicon glyphicon-trash")).append("删除");
             var btnTd = $("<td></td>").append(editBtn).append(" ").append(delBtn);
             //append方法执行完成以后还是返回原来的元素
@@ -223,6 +224,7 @@
         $("#page_info_area").append("当前是"+resault.extend.pageInfo.pageNum
             +"页，总"+resault.extend.pageInfo.pages+"页，总"+resault.extend.pageInfo.total+"条记录");
         totalRecord=resault.extend.pageInfo.total;
+        currentPage=resault.extend.pageInfo.pageNum;
 
     }
     function buid_page_nav(resault) {
@@ -243,12 +245,9 @@
                 to_page(resault.extend.pageInfo.pageNum-1);
             });
         }
-
         var nextPageLi = $("<li></li>").append($("<a></a>").append("&raquo;"));
         var lastPageLi = $("<li></li>").append($("<a></a>").append("末页"));
         //看一下click函数和下边的if判断的前后顺序有没有关系,结果：没有关系
-
-
         if(!resault.extend.pageInfo.hasNextPage){
             nextPageLi.addClass("disabled");
             lastPageLi.addClass("disabled");
@@ -288,13 +287,15 @@
        // $("#empAddModal form")[0].reset();
        reset_form("#empAddModal form");
         //发送ajax请求，查出部门信息，显示在下拉列表中
-        getDepts();
+        getDepts("#empAddModal select");
        $("#empAddModal").modal({
            backdrop:"static"
        });
     });
     //查出所有部门信息显示在下拉列表中
-    function getDepts() {
+    function getDepts(ele) {
+        //清空之前的下拉列表的值
+        $(ele).empty();
         $.ajax({
                 url:"${APP_PATH}/depts",
                 type:"GET",
@@ -303,7 +304,7 @@
                 //显示部门信息
                 $.each(resault.extend.depts,function () {
                     var optionEle = $("<option></option>").append(this.deptName).attr("value",this.deptId);
-                    optionEle.appendTo("#dept_add_select");
+                    optionEle.appendTo(ele);
                 });
             }
         });
@@ -321,12 +322,12 @@
         }
         var email=$("#email_add_input").val();
         var regEmail = /^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$/;
-        /*if(!regEmail.test(email)){
+        if(!regEmail.test(email)){
             show_validate_msg("#email_add_input","false","邮箱格式错误");
             return false;
         }else{
             show_validate_msg("#email_add_input","true","");
-        }*/
+        }
         return true;
     }
 //打印校验结果
@@ -395,6 +396,62 @@
                     }
                 }
 
+            }
+        });
+    });
+
+    //1、直接$(".edit_btn").click()不可以，我们是按钮创建之前就绑定了click，所以绑定不上,
+    //1）可以在创建按钮的时候绑定 2）绑定点击.live(),jquery新版本没有live，使用on进行替代
+    $(document).on("click",".edit_btn",function () {
+        //2 查出部门信息，显示部门列表
+        //reset_form("#empUpdateModal form");
+        getDepts("#empUpdateModal select");
+        //1 查出员工信息，显示员工信息
+        getEmp($(this).attr("edit-id"));
+        //3 把员工的id传递给模态框的更新按钮
+        $("#emp_updateBtn").attr("edit-id",$(this).attr("edit-id"));
+        $("#empUpdateModal").modal({
+            backdrop:"static"
+        });
+    });
+    function getEmp(id) {
+        $.ajax({
+            url:"${APP_PATH}/emp/"+id,
+            type:"GET",
+            success:function (resault) {
+                var empData = resault.extend.emp;
+                $("#empName_update_static").text(empData.empName);
+                $("#email_update_input ").val(empData.email);
+                $("#empUpdateModal input[name=gender]").val([empData.gender]);
+                $("#empUpdateModal select").val([empData.dId]);
+            }
+        });
+    }
+
+    //点击更新，更新员工信息
+    $("#emp_updateBtn").click(function () {
+        //验证邮箱是否合法
+        var email=$("#email_update_input").val();
+        var regEmail = /^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$/;
+        if(!regEmail.test(email)){
+            show_validate_msg("#email_update_input","false","邮箱格式错误");
+            return false;
+        }else{
+            show_validate_msg("#email_update_input","true","");
+        }
+        //发生ajax请求
+        $.ajax({
+            url:"${APP_PATH}/emp/"+$(this).attr("edit-id"),
+            /*type:"POST",
+            data:$("#empUpdateModal form").serialize()+"&_method=PUT",*/
+            type:"put",
+            data:$("#empUpdateModal form").serialize(),
+            success:function (resault) {
+               // alert(resault.msg);
+                //1 关闭模态框
+                $("#empUpdateModal").modal("hide");
+                //2 回到本页面
+                to_page(currentPage);
             }
         });
     });
