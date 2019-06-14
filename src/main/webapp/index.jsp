@@ -428,7 +428,7 @@
         });
     }
 
-    //点击更新，更新员工信息
+    //点击更新，更新员工信息，跟新前需要验证
     $("#emp_updateBtn").click(function () {
         //验证邮箱是否合法
         var email=$("#email_update_input").val();
